@@ -49,12 +49,13 @@ void txMotorTorque(int id, int len, struct Status *status){
     msg.id = id;
     msg.len = len;
 
-    msg.buf[0] =  ( status -> epsData[2] << 4 ) & B10000000; 	// push the last bit of the Big motor torque(3 bits) on the MSB (7th bit) of the first byte of the 10 bit signal
-    msg.buf[0] |=   status -> epsData[3] & B01111111; 			// move the Small Motor Torque (7bits) into the rest of the first byte (bits 0-6)
-    msg.buf[1] =  ( status -> epsData[2] >> 4 ) & B00000011; 	// move the 2 MSB of Big Steer (3 bit) into the LSB of the 2nd byte (bits 0 and 1) containing the 2 MSB of the signal 
 
-    msg.buf[1] |= ( status -> lkasData[0] >> 2 ) & B00000100; 	//LKAS B0 O4  into CAN B1 O2
-    msg.buf[1] |= ( status -> epsData[1]  & B00100000); 		// EPS B1 O5 (EPS_LKAS_ON aka LKAS_ON_FROM_EPS)
+    msg.buf[1] =  ( status -> epsData[2] << 4 ) & B10000000; // push the last bit of the Big motor torque(3 bits) on the MSB (7th bit) of the first byte of the 10 bit signal
+    msg.buf[1] |=   status -> epsData[3] & B01111111; // move the Small Motor Torque (7bits) into the rest of the first byte (bits 0-6)
+    msg.buf[0] =  ( status -> epsData[2] >> 4 ) & B00000011; // move the 2 MSB of Big Steer (3 bit) into the LSB of the 2nd byte (bits 0 and 1) containing the 2 MSB of the signal 
+
+    // msg.buf[0] |= ( status -> lkasData[0] >> 2 ) & B00000100; //LKAS B0 O4  into CAN B1 O2 // Don't think we care about this for now...
+    // msg.buf[0] |= ( status -> epsData[1]  & B00100000); // EPS B1 O5 (EPS_LKAS_ON aka LKAS_ON_FROM_EPS)
 
     msg.buf[2] =  ( status -> counter << 4 ); 					// put in the counter
     msg.buf[2] |=   status -> epsData[0] & B01000000; 			//EPS  B0 O6  into CAN B2 O6
