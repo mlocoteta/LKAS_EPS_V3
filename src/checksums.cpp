@@ -46,9 +46,8 @@ uint8_t chksm_old(uint8_t firstByte, uint8_t secondByte, uint8_t thirdByte){
 	return (uint8_t)(local % 256);
 }
 
-//code mostly taken from safety_honda.h  Credit Comma.ai MIT license on this function only
+//code mostly taken from safety_honda.h  Credit Comma.ai MIT license on this function
 uint8_t honda_compute_checksum(uint8_t *steerTorqueAndMotorTorque, uint8_t len, unsigned int addr) {
-//   int len = GET_LEN(to_push);
   uint8_t checksum = 0U;
   while (addr > 0U) {
     checksum += (addr & 0xFU); addr >>= 4;
@@ -62,7 +61,3 @@ uint8_t honda_compute_checksum(uint8_t *steerTorqueAndMotorTorque, uint8_t len, 
   }
   return (8U - checksum) & 0xFU;
 }
-
-// uint8_t honda_compute_checksum_CAN(CAN_message_t *themsg){
-// 	return honda_compute_checksum(&(*themsg).buf[0],(*themsg).len, (unsigned int) (*themsg).id);
-// }

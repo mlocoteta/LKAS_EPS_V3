@@ -5,14 +5,6 @@
 #include "common.h"
 #include "eXoCAN.h"
 
-// BO_ 427 STEER_MOTOR_TORQUE: 3 EPS
-//  SG_ MOTOR_TORQUE : 0|10@0+ (1,0) [-256|256] "" EON
-//  SG_ OUTPUT_DISABLED_INVERT : 15|1@0+ (1,0) [0|1] "not sure if its invert or some LDW" EON
-//  SG_ UNK_3BIT_1 : 10|3@0+ (1,0) [0|7] "" EON
-//  SG_ OUTPUT_DISABLED : 14|1@0+ (1,0) [0|1] "" EON
-//  SG_ COUNTER : 21|2@0+ (1,0) [0|3] "" EON
-//  SG_ CHECKSUM : 19|4@0+ (1,0) [0|15] "" EON
-
 void txCanData(struct Status *status){
 
     txMotorTorque(427, 3, status);
@@ -57,15 +49,12 @@ void txMotorTorque(int id, int len, struct Status *status){
     msg.id = id;
     msg.len = len;
 
-	msg.buf[0] = status -> steerTorqueLast & B11111111;			// Break apart driver Torque
-	msg.buf[1] = status -> steerTorqueLast >> 8;
+    msg.buf[0] =  ( status -> epsData[2] << 4 ) & B10000000; 	// push the last bit of the Big motor torque(3 bits) on the MSB (7th bit) of the first byte of the 10 bit signal
+    msg.buf[0] |=   status -> epsData[3] & B01111111; 			// move the Small Motor Torque (7bits) into the rest of the first byte (bits 0-6)
+    msg.buf[1] =  ( status -> epsData[2] >> 4 ) & B00000011; 	// move the 2 MSB of Big Steer (3 bit) into the LSB of the 2nd byte (bits 0 and 1) containing the 2 MSB of the signal 
 
-    // msg.buf[0] =  ( status -> epsData[2] << 4 ) & B10000000; 	// push the last bit of the Big motor torque(3 bits) on the MSB (7th bit) of the first byte of the 10 bit signal
-    // msg.buf[0] |=   status -> epsData[3] & B01111111; 			// move the Small Motor Torque (7bits) into the rest of the first byte (bits 0-6)
-    // msg.buf[1] =  ( status -> epsData[2] >> 4 ) & B00000011; 	// move the 2 MSB of Big Steer (3 bit) into the LSB of the 2nd byte (bits 0 and 1) containing the 2 MSB of the signal 
-
-    // msg.buf[1] |= ( status -> lkasData[0] >> 2 ) & B00000100; 	//LKAS B0 O4  into CAN B1 O2
-    // msg.buf[1] |= ( status -> epsData[1]  & B00100000); 		// EPS B1 O5 (EPS_LKAS_ON aka LKAS_ON_FROM_EPS)
+    msg.buf[1] |= ( status -> lkasData[0] >> 2 ) & B00000100; 	//LKAS B0 O4  into CAN B1 O2
+    msg.buf[1] |= ( status -> epsData[1]  & B00100000); 		// EPS B1 O5 (EPS_LKAS_ON aka LKAS_ON_FROM_EPS)
 
     msg.buf[2] =  ( status -> counter << 4 ); 					// put in the counter
     msg.buf[2] |=   status -> epsData[0] & B01000000; 			//EPS  B0 O6  into CAN B2 O6
@@ -131,7 +120,7 @@ void txRawEPSData(int id, int len, struct Status *status){
 	msg.buf[4] =  status -> epsData[4];
 	msg.buf[5] =  status -> epsData[5];
 
-	msg.buf[6] = (status->counter << 4 ); // put in the counter
+	msg.buf[6] = (status->counter << 4 ); 
 	msg.buf[6] |= honda_compute_checksum(&msg.buf[0],msg.len,(unsigned int) msg.id);
 
 	sendCanMsg(&msg);
@@ -139,7 +128,7 @@ void txRawEPSData(int id, int len, struct Status *status){
 
 void handleLkasFromCan(msgFrm canMsg, struct Status *status){
 
-	if(canMsg.txMsgID != 228){			// Do we need this still, doesn't eXoCAN filter this??
+	if(canMsg.txMsgID != 228){
 		return;
 	}
 	

@@ -1,3 +1,5 @@
+// Credit goes to reddn for which this is based off of 
+// https://github.com/reddn/LINInterfaceV2
 #include "common.h"
 #include <SWOStream.h>
 
@@ -12,45 +14,46 @@ int main()
 {
   init();
 
-  eXoCAN can(STD_ID_LEN, BR500K, PORTB_8_9_XCVR); // Setup CAN at 500k
+  eXoCAN can(STD_ID_LEN, BR500K, PORTB_8_9_XCVR); // Create CAN object 500k
 	msgFrm canMsg;								                	// Create CAN message
-	can.begin(STD_ID_LEN, BR500K, PORTB_8_9_XCVR);
-  can.filterList16Init(0,0xe4,0,0,0);
+	can.begin(STD_ID_LEN, BR500K, PORTB_8_9_XCVR);  // Start CAN bus
+  can.filterList16Init(0,0xe4,0,0,0);             // Filter on 0xE4 
 	canMsg.busConfig = PORTB_8_9_XCVR;				      // Update bus config
-  int fltIdx;
+  int fltIdx;                                     // Required for filter to work.
   
-  setupGPIO();
+  setupGPIO();                                    // Sets up LEDs
   	
   EPStoLKAS_Serial.begin(9600,SERIAL_8E1); 		// Setup EPS to LKAS UART
   LKAStoEPS_Serial.begin(9600,SERIAL_8E1); 		// Setup LKAS to EPS UART
   
-  static struct Status globalStatus;
-  globalStatus.counter = 0;
-  static bool tx_can = 0;
+  static struct Status globalStatus;          // Most global data is contained here
+  globalStatus.counter = 0;                   // Initialize counter
+  static bool tx_can = 0;                     
 
   while (1)
   {
-    updateStatus(&globalStatus);
-    LKAStoEPS(&globalStatus, LKAStoEPS_Serial);
-    tx_can = EPStoLKAS(&globalStatus, EPStoLKAS_Serial);
+    updateStatus(&globalStatus);                          // Update status and determine if we can transmit requested torque
+    LKAStoEPS(&globalStatus, LKAStoEPS_Serial);           // Captures and sends data from the camera to the power steering
+    tx_can = EPStoLKAS(&globalStatus, EPStoLKAS_Serial);  // Captures and sends data from the power steering to the camera
 
     if (tx_can){
-      txCanData(&globalStatus);
+      txCanData(&globalStatus);                           // Transmit CAN data once we have full messages from the EPS
     }
 
     if(can.receive(canMsg.txMsgID, fltIdx, canMsg.txMsg.bytes) > -1){      
-	    handleLkasFromCan(canMsg, &globalStatus);
+	    handleLkasFromCan(canMsg, &globalStatus);           // Recieve CAN data for steering torque requestss
     }
 
   }
 }
 
+// Updates error states, LED state and determines if we can transmit requested data to the EPS
 void updateStatus(struct Status *status) {
 
   bool tx = 1;
   status -> error.inError = 0;
 
-  if (!status->can.lkasRequest){
+  if (!status->can.lkasRequest){  
     tx = 0;
   }
 
@@ -99,7 +102,7 @@ void updateStatus(struct Status *status) {
   status->lkasAllowed = tx;
 }
 
-
+// Returns if the timer is expired (true/false). Also has self-reset function
 bool timeSince(uint32_t *timer, uint32_t compareTime, bool autoReset)
 {
   bool flag = ((millis() - *timer) > compareTime);

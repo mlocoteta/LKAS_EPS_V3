@@ -1,6 +1,11 @@
 #include "common.h"
 #include "hondaSerial.h"
 
+// Handles serial data from the camera to the power steering.
+// There are three outputs to the power steering: 
+// 1. Passthrough   	  --> This is the default output
+// 2. "Fixed" array 	  --> Device which can transmit is detected but not requesting torque.
+// 3. Manipulated message --> Transmits a requested torque from another device.
 void LKAStoEPS(struct Status *status, Stream &serial){
     static struct serialLKAS lkasMsg;
 
@@ -31,6 +36,8 @@ void LKAStoEPS(struct Status *status, Stream &serial){
 	}
 }
 
+// Interprets and handles message from the camera system.
+// Also helps us keep on the first byte of the 4 byte transmission
 bool deconstructLKAS(uint8_t msg, struct serialLKAS *lkasMsg){
 	bool dataAvailable = 0;
 	
@@ -63,6 +70,7 @@ bool deconstructLKAS(uint8_t msg, struct serialLKAS *lkasMsg){
 	return dataAvailable;
 }
 
+// Transmits a message to the EPS based on an external torque request.
 void serialSteerToEPS(struct serialLKAS *lkasMsg, struct Status *status, Stream &serial){
 	uint8_t msg[4];
     
@@ -94,6 +102,7 @@ void serialSteerToEPS(struct serialLKAS *lkasMsg, struct Status *status, Stream 
 	lkasMsg->steerLSB = steerB0 & B00000001;					// Save last bit for "wiggle" noted above
 }
 
+// Transmits a message to the EPS if there is no torque request.
 void serialSteerToEPS(struct serialLKAS *lkasMsg, uint8_t *array, Stream &serial){ // Write predefined message
 	for(int i=0; i<5; i++){
 		serial.write(*(array+i));						
@@ -101,7 +110,8 @@ void serialSteerToEPS(struct serialLKAS *lkasMsg, uint8_t *array, Stream &serial
 	}
 }
 
-
+// Message from the power steering to the camera.
+// This contains torque information such as the driver torque applied to the wheel.
 bool EPStoLKAS(struct Status *status, Stream &serial){
     static struct serialLKAS epsMsg;
 
@@ -136,7 +146,7 @@ bool EPStoLKAS(struct Status *status, Stream &serial){
     return 1;
 }
 
-
+// Decodes the data from the EPS to generate one 16 bit word for driver torque.
 int16_t calculateSteerTorque(struct serialLKAS *epsMsg){
 
     uint8_t lsb  =  (epsMsg->data[0] << 5 );					// 3 LSB of BigSteerTorque (4bit)
@@ -148,6 +158,7 @@ int16_t calculateSteerTorque(struct serialLKAS *epsMsg){
 	return steerTorque;
 } 
 
+// Torque blend is WIP but we'd like to remove blending driver torque and requested torque on-device
 uint16_t torque_blend(uint16_t applyTorque, uint16_t applyTorqueLast, uint16_t driverTorque){ // Source is from Openpilot
 /* TODO: Fix this later. 
 	// uint8_t steer_b0 = canMsg.txMsg.bytes[0];
@@ -170,8 +181,6 @@ uint16_t torque_blend(uint16_t applyTorque, uint16_t applyTorqueLast, uint16_t d
 	// uint8_t steerLSB  =   steerLSB_blend & B00011111;
 
 */
-
-
 
   int32_t apply_torque      = applyTorque;
   int32_t apply_torque_last = applyTorqueLast;
@@ -199,6 +208,7 @@ uint16_t torque_blend(uint16_t applyTorque, uint16_t applyTorqueLast, uint16_t d
   return final_torque;
 }
 
+// Math function required for torque blending
 int16_t clip(int16_t x, int16_t lo, int16_t hi){
   return MAX(lo, MIN(hi, x));
 }
