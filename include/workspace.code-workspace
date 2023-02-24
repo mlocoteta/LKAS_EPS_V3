@@ -1,0 +1,29 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.tcc": "c",
+			"common.h": "c",
+			"array": "c",
+			"string": "c",
+			"string_view": "c",
+			"lkasmsg.h": "c",
+			"exocan.h": "c",
+			"arduino.h": "c",
+			"io.h": "c",
+			"deque": "cpp",
+			"unordered_map": "cpp",
+			"vector": "cpp",
+			"initializer_list": "cpp",
+			"istream": "cpp",
+			"ostream": "cpp",
+			"lkastoeps.h": "c",
+			"hardwareserial.h": "c",
+			"algorithm": "cpp"
+		}
+	}
+}
