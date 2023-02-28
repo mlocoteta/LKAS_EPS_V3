@@ -17,18 +17,13 @@ void LKAStoEPS(struct Status *status, Stream &serial){
 	uint8_t rx = serial.read();           			 	// Get byte of LKAStoEPS 
     bool dataReady = deconstructLKAS(rx, &lkasMsg);  	// Update structure 
 
-	if(dataReady){
-	    if(status->lkasAllowed){
-            if(status->can.lkasRequest){
-                serialSteerToEPS(&lkasMsg, status, serial); // Transmit steer message to EPS
-			} else {
-				uint8_t lkas_off_array[][4] = { {0x00,0x80,0xC0,0xC0}, {0x20,0x80,0xC0,0xA0} };  		  // LKAS is off array
-				serialSteerToEPS(&lkasMsg, &lkas_off_array[lkasMsg.counterBit][0], serial);
-				status->sendFrameDelay = 5;
-			}
+	if(dataReady && status->lkasAllowed){
+        if(status->can.lkasRequest){
+			serialSteerToEPS(&lkasMsg, status, serial); // Transmit steer message to EPS
 		} else {
-		    serial.write(rx);	   					// Passthrough
-			status->lkasData[lkasMsg.totalCounter] = rx;
+			uint8_t lkas_off_array[][4] = { {0x00,0x80,0xC0,0xC0}, {0x20,0x80,0xC0,0xA0} };  		  // LKAS is off array
+			serialSteerToEPS(&lkasMsg, &lkas_off_array[lkasMsg.counterBit][0], serial);
+			status->sendFrameDelay = 5;
 		}
 	} else {
         serial.write(rx);
@@ -104,7 +99,7 @@ void serialSteerToEPS(struct serialLKAS *lkasMsg, struct Status *status, Stream 
 
 // Transmits a message to the EPS if there is no torque request.
 void serialSteerToEPS(struct serialLKAS *lkasMsg, uint8_t *array, Stream &serial){ // Write predefined message
-	for(int i=0; i<5; i++){
+	for(int i=0; i<4; i++){
 		serial.write(*(array+i));						
 		lkasMsg->data[i] = *(array+i); 							// Save tx msg data
 	}

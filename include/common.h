@@ -23,7 +23,6 @@ int16_t clip(int16_t x, int16_t lo, int16_t hi);
 #define steerDriverFactor  1
 
 struct Error {
-    bool inError;
     bool lateMsg;
     bool lateCanMsg;
     uint8_t invalidCounterCount;
@@ -53,6 +52,7 @@ struct Status {
     bool lkasAllowed;
     bool msgSteerRequest;   // Detection of a 
     bool steerBlended;
+    bool found0xE4;
 
     uint16_t steerTorqueLast;
     uint16_t driverAppliedSteer;

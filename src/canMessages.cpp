@@ -33,13 +33,13 @@ void txFirmwareVersion(int id, int len, struct Status *status){
     msg.id = id;
     msg.len = len;
 	
-	msg.buf[0]  = VERSION_NUM;
-	msg.buf[0] |= VERSION_HW 						<< 4;
-	msg.buf[1]  = status->error.lateMsg				<< 0;
-	msg.buf[1] |= status->error.lateCanMsg 			<< 1;
-	msg.buf[1] |= status->error.invalidCounterCount	<< 2;
-	msg.buf[1] |= status->error.invalidChecksumCount<< 3;
-	msg.buf[1] |= status->error.inError<< 4;
+	msg.buf[0]  =  VERSION_NUM;
+	msg.buf[0] |=  VERSION_HW 						  << 4;
+	msg.buf[1]  =  status->error.lateMsg			  << 0;
+	msg.buf[1] |=  status->error.lateCanMsg 		  << 1;
+	msg.buf[1] |=  status->error.invalidCounterCount  << 2;
+	msg.buf[1] |=  status->error.invalidChecksumCount << 3;
+	msg.buf[1] |= !status->lkasAllowed                << 4;
     
 	sendCanMsg(&msg);
 }
@@ -75,13 +75,12 @@ void txSteerStatus(int id, int len, struct Status *status){ //TODO: add to deccl
 	msg.buf[0] = status -> driverAppliedSteer & B11111111;			// Break apart driver Torque
 	msg.buf[1] = status -> driverAppliedSteer >> 8;
 
-	msg.buf[1] |= status->lkasAllowed 	<< 1;  				        // CAN B1 O1
-	msg.buf[1] |= status->error.inError << 2; 		        		// CAN B1 O2
-	msg.buf[1] |= status->error.lateMsg << 3; 		        		// CAN B1 O2
+	msg.buf[1] |= !status->lkasAllowed << 1; 		        		// Record LKAS not allowed to separate out from B1 O5
+	msg.buf[1] |= status->error.lateMsg << 2; 		        		// CAN B1 O2
 
-	msg.buf[1] |= (status->epsData[2] << 4)	& B01110000;    		//EPS B2 O0-2 into CAN B2 O0-2
 	msg.buf[1] |= (status->epsData[0] << 3) & B10000000;    		//EPS B0 O4 into CAN B2 O3
-	msg.buf[1] |= (status->error.inError << 5) & B00010000;
+	msg.buf[1] |= (status->epsData[2] << 4)	& B01110000;    		//EPS B2 O0-2 into CAN B2 O0-2
+	msg.buf[1] |= (!status->lkasAllowed << 5) & B00010000;			//If LKAS isn't allowed for some reason, force temporary STEER_STATUS error
 
 	msg.buf[2]  = (status->counter << 4 );				        // put in the counter
 	msg.buf[2] |= honda_compute_checksum(&msg.buf[0], msg.len, (unsigned int) msg.id);
@@ -133,6 +132,8 @@ void handleLkasFromCan(msgFrm canMsg, struct Status *status){
 		return;
 	}
 	
+	status->found0xE4 = 1; 											// Allow error state LED
+
 	uint8_t steerMSB  = ( canMsg.txMsg.bytes[0] >> 4 ) & B00001000;
 	steerMSB |= ( canMsg.txMsg.bytes[1] >> 5 ) & B00000111;
 	uint8_t steerLSB = canMsg.txMsg.bytes[1] & B00011111;

@@ -2,10 +2,10 @@
 // https://github.com/reddn/LINInterfaceV2
 #include "common.h"
 #include <SWOStream.h>
+#include <IWatchdog.h>
 
 HardwareSerial EPStoLKAS_Serial(PA3,PA2); // rx, tx          
 HardwareSerial LKAStoEPS_Serial(PA10,PA9);
-
 
 
 #undef main
@@ -13,7 +13,9 @@ HardwareSerial LKAStoEPS_Serial(PA10,PA9);
 int main()
 {
   init();
-
+  delay(3000);
+  IWatchdog.begin(12000);                         // 12ms watchdog
+  
   eXoCAN can(STD_ID_LEN, BR500K, PORTB_8_9_XCVR); // Create CAN object 500k
 	msgFrm canMsg;								                	// Create CAN message
 	can.begin(STD_ID_LEN, BR500K, PORTB_8_9_XCVR);  // Start CAN bus
@@ -36,7 +38,7 @@ int main()
     LKAStoEPS(&globalStatus, LKAStoEPS_Serial);           // Captures and sends data from the camera to the power steering
     tx_can = EPStoLKAS(&globalStatus, EPStoLKAS_Serial);  // Captures and sends data from the power steering to the camera
 
-    if (tx_can){
+    if(tx_can) {
       txCanData(&globalStatus);                           // Transmit CAN data once we have full messages from the EPS
     }
 
@@ -49,45 +51,35 @@ int main()
 
 // Updates error states, LED state and determines if we can transmit requested data to the EPS
 void updateStatus(struct Status *status) {
-
+  IWatchdog.reload();
   bool tx = 1;
-  status -> error.inError = 0;
 
-  if (!status->can.lkasRequest){  
+  if (status->error.invalidCounterCount > 2){
     tx = 0;
   }
 
-  if (status->error.invalidCounterCount > 2){
-    status -> error.inError = 1;
-  }
-
   if (status->error.invalidChecksumCount > 2){
-    status -> error.inError = 1;
+    tx = 0;
   }
 
   if (timeSince(&status->timers.steeringControlTime_LKAS, 50, false)){
     status->error.lateMsg = 1;
-    status -> error.inError = 1;
+    tx = 0;
   } else {
     status->error.lateMsg = 0;
   }
 
   if (timeSince(&status->timers.steeringControlTime_EPS, 50, false)){
     status->error.lateMsg = 1;
-    status -> error.inError = 1;
+    tx = 0;
   } else {
     status->error.lateMsg = 0;
   }
 
   if (timeSince(&status->timers.can100HzTimer, 50, false)){
     status->error.lateCanMsg = 1;
-    status -> error.inError = 1;
   } else {
     status->error.lateCanMsg = 0;
-  }
-
-  if (status->error.inError){
-    tx = 0;
   }
 
   if (timeSince(&status->timers.ledTimer, (1000 / (tx + 1)) , true)){
@@ -98,7 +90,7 @@ void updateStatus(struct Status *status) {
     status->can.txFirmwareVersion = 1;
   }
 
-  digitalWrite(errorLED, tx);
+  digitalWrite(errorLED, (!status->lkasAllowed & status->found0xE4));
   status->lkasAllowed = tx;
 }
 
