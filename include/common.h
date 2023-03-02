@@ -50,14 +50,14 @@ struct Timer {
 
 struct Status {
     bool lkasAllowed;
-    bool msgSteerRequest;   // Detection of a 
     bool steerBlended;
     bool found0xE4;
 
-    uint16_t steerTorqueLast;
-    uint16_t driverAppliedSteer;
-    uint8_t epsData[5];
-    uint8_t lkasData[5];
+    int16_t steerTorqueLast;        // Calculated steer torque from blend
+    int16_t steerTorqueIn;          // Requested Steer Torque
+    int16_t driverAppliedSteer;     // Driver Torque
+    uint8_t epsData[5];             // Raw EPS bytes
+    uint8_t lkasData[5];            // Raw LKAS bytes
     uint8_t counter;
     uint8_t sendFrameDelay; // Stock system applies 5 frames of applysteer = 0
     

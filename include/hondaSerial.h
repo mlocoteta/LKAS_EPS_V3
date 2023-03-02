@@ -13,9 +13,6 @@ int16_t calculateSteerTorque(struct serialLKAS *epsMsg);
 uint8_t createSteerTorqueMSB(uint16_t steertorque);
 uint8_t createSteerTorqueLSB(uint16_t steertorque);
 
-uint16_t torque_blend(uint16_t applyTorque, uint16_t applyTorqueLast, uint16_t driverTorque);
-
-
 struct serialLKAS {
 	bool sent;
 	uint8_t totalCounter;

@@ -4,21 +4,24 @@
 #include "version.h"
 #include "common.h"
 #include "eXoCAN.h"
+#include "io.h"
 
 void txCanData(struct Status *status){
 
     txMotorTorque(427, 3, status);
     txSteerStatus(400, 3, status);
 
+
+
+	#ifdef RAW_LIN_DATA // Only 1 message can be added, otherwise mailbox is full
+    	txRawLKASData(523, 6, status);
+    	txRawEPSData(524, 7, status);
+    	txRawTorqueBlend(525, 7, status);
+	#endif
+
 	if(status->can.txFirmwareVersion){
 		txFirmwareVersion(520, 2, status);
 		status->can.txFirmwareVersion = 0;
-	}
-
-	#ifdef RAW_LIN_DATA
-    	txRawLKASData(523, 6, status);
-    	txRawEPSData(524, 7, status);
-	#endif
 
 	status->counter++;
     if(status->counter > 3){
@@ -26,7 +29,6 @@ void txCanData(struct Status *status){
     }
 
 }
-
 
 void txFirmwareVersion(int id, int len, struct Status *status){ 
     CAN_msg_t msg;
@@ -48,7 +50,6 @@ void txMotorTorque(int id, int len, struct Status *status){
     CAN_msg_t msg;
     msg.id = id;
     msg.len = len;
-
 
     msg.buf[1] =  ( status -> epsData[2] << 4 ) & B10000000; // push the last bit of the Big motor torque(3 bits) on the MSB (7th bit) of the first byte of the 10 bit signal
     msg.buf[1] |=   status -> epsData[3] & B01111111; // move the Small Motor Torque (7bits) into the rest of the first byte (bits 0-6)
@@ -72,8 +73,8 @@ void txSteerStatus(int id, int len, struct Status *status){ //TODO: add to deccl
     msg.id = id;
     msg.len = len;
 	
-	msg.buf[0] = status -> driverAppliedSteer & B11111111;			// Break apart driver Torque
-	msg.buf[1] = status -> driverAppliedSteer >> 8;
+	msg.buf[0] = status->driverAppliedSteer & B11111111;			// Break apart driver Torque
+	msg.buf[1] = status->driverAppliedSteer >> 8;
 
 	msg.buf[1] |= !status->lkasAllowed << 1; 		        		// Record LKAS not allowed to separate out from B1 O5
 	msg.buf[1] |= status->error.lateMsg << 2; 		        		// CAN B1 O2
@@ -126,17 +127,59 @@ void txRawEPSData(int id, int len, struct Status *status){
 	sendCanMsg(&msg);
 }
 
+// Diagnostic for torque blending
+void txRawTorqueBlend(int id, int len, struct Status *status){
+	
+    CAN_msg_t msg;
+    msg.id = id;
+    msg.len = len;
+
+	msg.buf[0] =  status -> steerTorqueLast >> 8;
+	msg.buf[1] =  status -> steerTorqueLast & B11111111;
+	msg.buf[2] = 0;
+	msg.buf[3] = 0;
+	// msg.buf[2] =  status -> steerTorqueIn >>8;
+	// msg.buf[3] =  status -> steerTorqueIn & B11111111;
+	msg.buf[4] =  status -> driverAppliedSteer >> 8;
+	msg.buf[5] =  status -> driverAppliedSteer & B11111111;
+
+	msg.buf[6] = (status->counter << 4 ); 
+	msg.buf[6] |= honda_compute_checksum(&msg.buf[0],msg.len,(unsigned int) msg.id);
+
+	sendCanMsg(&msg);
+}
+
+
 void handleLkasFromCan(msgFrm canMsg, struct Status *status){
 
 	if(canMsg.txMsgID != 228){
 		return;
 	}
 	
-	status->found0xE4 = 1; 											// Allow error state LED
+	status->found0xE4 = 1; 										// Allow error state LED
 
-	uint8_t steerMSB  = ( canMsg.txMsg.bytes[0] >> 4 ) & B00001000;
-	steerMSB |= ( canMsg.txMsg.bytes[1] >> 5 ) & B00000111;
-	uint8_t steerLSB = canMsg.txMsg.bytes[1] & B00011111;
+	// Start Blending 
+	uint8_t steer_b0 = canMsg.txMsg.bytes[0];					// Upper word
+	uint8_t steer_b1 = canMsg.txMsg.bytes[1];					// Lower word
+
+	int16_t steerTorque = steer_b0 << 8 | steer_b1;				// Upper + Lower words  --> Total steer Torque
+	status -> steerTorqueIn = steerTorque;			// Upper + Lower words  --> Total steer Torque
+	int16_t steerTorqueBlended = torque_blend(steerTorque, status->steerTorqueLast, status->driverAppliedSteer);
+	status->steerTorqueLast = steerTorqueBlended;
+
+	if(steerTorque != steerTorqueBlended) { 					// Record that we blended
+		// status -> steerBlended = 1;
+	} else {
+		status -> steerBlended = 0;
+	}		
+    uint8_t steerMSB_blend = steerTorqueBlended >> 8;			// Break back into upper/ lower
+	uint8_t steerLSB_blend = steerTorqueBlended & B11111111;
+	// End blending
+
+	uint8_t steerMSB  = ( steerMSB_blend >> 4 ) & B00001000; 	// Process for LKAS manipulation
+			steerMSB |= ( steerLSB_blend >> 5 ) & B00000111;
+	uint8_t steerLSB  =   steerLSB_blend & B00011111;        
+
 
 	// Check counter validity
 	uint8_t rxCanCounter= (canMsg.txMsg.bytes[4] >> 4) & B00000011;
@@ -209,6 +252,42 @@ void sendCanMsg(CAN_msg_t *CAN_tx_msg){
 	CAN1->sTxMailBox[mailbox].TIR = out | STM32_CAN_TIR_TXRQ;
 
 	return;
+}
+
+// Torque blend is WIP but we'd like to remove blending driver torque and requested torque on-device
+int16_t torque_blend(int16_t applyTorque, int16_t applyTorqueLast, int16_t driverTorque){ // Source is from Openpilot
+
+  int32_t apply_torque      = applyTorque;
+  int32_t apply_torque_last = applyTorqueLast;		
+  int8_t driver_torque     = driverTorque >> 1; 	// Don't care about LSB. Easier to process
+  
+  // limits due to driver torque
+  int32_t driver_max_torque = steerMax + (steerDriverAllowance + driver_torque * steerDriverFactor) * steerDriverMultiplier;
+  int32_t driver_min_torque = -steerMax + (-steerDriverAllowance + driver_torque * steerDriverFactor) * steerDriverMultiplier;
+  int32_t max_steer_allowed = MAX(MIN(steerMax, driver_max_torque), 0);
+  int32_t min_steer_allowed = MIN(MAX(-steerMax, driver_min_torque), 0);
+
+  int32_t min_torque = MIN(abs(max_steer_allowed), abs(min_steer_allowed));
+  max_steer_allowed = min_torque;
+  min_steer_allowed = -min_torque;
+  apply_torque = clip(apply_torque, min_steer_allowed, max_steer_allowed);
+
+  // slow rate if steer torque increases in magnitude
+  if (apply_torque_last > 0){
+    apply_torque = clip(apply_torque, MAX(apply_torque_last - steerDeltaDown, -steerDeltaUp),
+                        apply_torque_last + steerDeltaUp);
+  } else {
+    apply_torque = clip(apply_torque, apply_torque_last - steerDeltaUp,
+                        MIN(apply_torque_last + steerDeltaDown, steerDeltaUp));
+  }
+  int16_t final_torque = apply_torque;
+  return final_torque;
+}
+
+
+// Math function required for torque blending
+int16_t clip(int16_t x, int16_t lo, int16_t hi){
+  return MAX(lo, MIN(hi, x));
 }
 
 #endif
