@@ -22,6 +22,7 @@ void txCanData(struct Status *status){
 	if(status->can.txFirmwareVersion){
 		txFirmwareVersion(520, 2, status);
 		status->can.txFirmwareVersion = 0;
+	}
 
 	status->counter++;
     if(status->counter > 3){
@@ -51,12 +52,25 @@ void txMotorTorque(int id, int len, struct Status *status){
     msg.id = id;
     msg.len = len;
 
-    msg.buf[1] =  ( status -> epsData[2] << 4 ) & B10000000; // push the last bit of the Big motor torque(3 bits) on the MSB (7th bit) of the first byte of the 10 bit signal
-    msg.buf[1] |=   status -> epsData[3] & B01111111; // move the Small Motor Torque (7bits) into the rest of the first byte (bits 0-6)
-    msg.buf[0] =  ( status -> epsData[2] >> 4 ) & B00000011; // move the 2 MSB of Big Steer (3 bit) into the LSB of the 2nd byte (bits 0 and 1) containing the 2 MSB of the signal 
-
+	// Comments are from old SSV2 DBC
+    // msg.buf[1] =  ( status -> epsData[2] << 4 ) & B10000000; // push the last bit of the Big motor torque(3 bits) on the MSB (7th bit) of the first byte of the 10 bit signal
+    // msg.buf[1] |=   status -> epsData[3] & B01111111; // move the Small Motor Torque (7bits) into the rest of the first byte (bits 0-6)
+    // msg.buf[0] =  ( status -> epsData[2] >> 4 ) & B00000011; // move the 2 MSB of Big Steer (3 bit) into the LSB of the 2nd byte (bits 0 and 1) containing the 2 MSB of the signal 
     // msg.buf[0] |= ( status -> lkasData[0] >> 2 ) & B00000100; //LKAS B0 O4  into CAN B1 O2 // Don't think we care about this for now...
     // msg.buf[0] |= ( status -> epsData[1]  & B00100000); // EPS B1 O5 (EPS_LKAS_ON aka LKAS_ON_FROM_EPS)
+
+	
+	uint16_t motorTorque = (status -> epsData[2] & B00110000) << 4;
+	motorTorque |= (status -> epsData[2] & B00001000) << 4;
+	motorTorque |= (status -> epsData[3] & B01111111);
+	
+	if (motorTorque & 0x0200){
+		motorTorque = ~(abs(motorTorque )) & 0x01FF;	// Convert to positive torque
+	}
+	
+	msg.buf[0]  = motorTorque >> 8;        // Upper byte
+	msg.buf[0] |= B10000000;			   // Configuration valid
+	msg.buf[1]  = motorTorque & B11111111; // Lower byte of motor torque
 
     msg.buf[2] =  ( status -> counter << 4 ); 					// put in the counter
     msg.buf[2] |=   status -> epsData[0] & B01000000; 			//EPS  B0 O6  into CAN B2 O6
@@ -138,8 +152,6 @@ void txRawTorqueBlend(int id, int len, struct Status *status){
 	msg.buf[1] =  status -> steerTorqueLast & B11111111;
 	msg.buf[2] = 0;
 	msg.buf[3] = 0;
-	// msg.buf[2] =  status -> steerTorqueIn >>8;
-	// msg.buf[3] =  status -> steerTorqueIn & B11111111;
 	msg.buf[4] =  status -> driverAppliedSteer >> 8;
 	msg.buf[5] =  status -> driverAppliedSteer & B11111111;
 

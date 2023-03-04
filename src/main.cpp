@@ -82,8 +82,17 @@ void updateStatus(struct Status *status) {
     status->error.lateCanMsg = 0;
   }
 
-  if (timeSince(&status->timers.ledTimer, (1000 / (tx + 1)) , true)){
-    digitalWrite(statusLED, !digitalRead(statusLED));
+// LED is ON if being manipulatd, otherwise blinks every ~10s for 20ms to indicate it's fine
+  if (status->can.lkasRequest){
+    digitalWrite(statusLED, HIGH);
+    status->can.lkasRequestLastState = true;
+  } else if (status->can.lkasRequestLastState && !status->can.lkasRequest) {
+    status->can.lkasRequestLastState = false;
+    digitalWrite(statusLED, LOW);
+  }else if (timeSince(&status->timers.ledTimer, 10000, true)){
+    digitalWrite(statusLED, LOW);
+  } else if (timeSince(&status->timers.ledTimer, 10000-20, false)){
+    digitalWrite(statusLED, HIGH);
   }
 
   if(timeSince(&status->timers.versionTimer, 100, true)){

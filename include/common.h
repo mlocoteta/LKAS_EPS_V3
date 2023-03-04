@@ -33,6 +33,7 @@ struct Can {
     bool     txFirmwareVersion;
     bool     msgDetected;        // CAN message detection
     bool     lkasRequest;       // LKAS allowed OP
+    bool     lkasRequestLastState;  // Used for LED disable
     uint8_t  opCounter;
     uint16_t steerTorque;       // Torque request value (raw)
     uint8_t  steerB0;           // Byte 0 (little steer byte)
@@ -52,7 +53,7 @@ struct Status {
     bool lkasAllowed;
     bool steerBlended;
     bool found0xE4;
-
+    
     int16_t steerTorqueLast;        // Calculated steer torque from blend
     int16_t steerTorqueIn;          // Requested Steer Torque
     int16_t driverAppliedSteer;     // Driver Torque
