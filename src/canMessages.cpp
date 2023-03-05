@@ -9,7 +9,7 @@
 void txCanData(struct Status *status){
 
     txMotorTorque(427, 3, status);
-    txSteerStatus(400, 3, status);
+    txSteerStatus(400, 5, status);
 
 
 
@@ -19,16 +19,24 @@ void txCanData(struct Status *status){
     	txRawTorqueBlend(525, 7, status);
 	#endif
 
-	if(status->can.txFirmwareVersion){
-		txFirmwareVersion(520, 2, status);
-		status->can.txFirmwareVersion = 0;
+	if(status->can.txAllSerial){
+		txAllSerialData(521, 8, status);
+
 	}
 
-	status->counter++;
-    if(status->counter > 3){
-        status->counter = 0;
+	status->counter_100hz++;
+    if(status->counter_100hz > 3){
+        status->counter_100hz = 0;
     }
 
+	if(status->can.txFirmwareVersion){
+		txFirmwareVersion(520, 3, status);
+		status->can.txFirmwareVersion = 0;
+		status->counter_10hz++;
+    	if(status->counter_10hz > 3){
+            status->counter_10hz = 0;
+        }
+	}
 }
 
 void txFirmwareVersion(int id, int len, struct Status *status){ 
@@ -43,7 +51,8 @@ void txFirmwareVersion(int id, int len, struct Status *status){
 	msg.buf[1] |=  status->error.invalidCounterCount  << 2;
 	msg.buf[1] |=  status->error.invalidChecksumCount << 3;
 	msg.buf[1] |= !status->lkasAllowed                << 4;
-    
+    msg.buf[2]  = (status->counter_10hz << 4 );				        // put in the counter
+	msg.buf[2] |= honda_compute_checksum(&msg.buf[0], msg.len, (unsigned int) msg.id);
 	sendCanMsg(&msg);
 }
 
@@ -72,7 +81,7 @@ void txMotorTorque(int id, int len, struct Status *status){
 	msg.buf[0] |= B10000000;			   // Configuration valid
 	msg.buf[1]  = motorTorque & B11111111; // Lower byte of motor torque
 
-    msg.buf[2] =  ( status -> counter << 4 ); 					// put in the counter
+    msg.buf[2] =  ( status -> counter_100hz << 4 ); 					// put in the counter
     msg.buf[2] |=   status -> epsData[0] & B01000000; 			//EPS  B0 O6  into CAN B2 O6
     msg.buf[2] |= ( status -> epsData[1] << 1 ) & B10000000; 	//EPS  B1 O6  into CAN B2 O7  //dont know if this does anything,keeping
 
@@ -87,7 +96,7 @@ void txSteerStatus(int id, int len, struct Status *status){ //TODO: add to deccl
     msg.id = id;
     msg.len = len;
 	
-	msg.buf[0] = status->driverAppliedSteer & B11111111;			// Break apart driver Torque
+	msg.buf[0] = status->driverAppliedSteer & 0xFF;				// Break apart driver Torque
 	msg.buf[1] = status->driverAppliedSteer >> 8;
 
 	msg.buf[1] |= !status->lkasAllowed << 1; 		        		// Record LKAS not allowed to separate out from B1 O5
@@ -97,9 +106,12 @@ void txSteerStatus(int id, int len, struct Status *status){ //TODO: add to deccl
 	msg.buf[1] |= (status->epsData[2] << 4)	& B01110000;    		//EPS B2 O0-2 into CAN B2 O0-2
 	msg.buf[1] |= (!status->lkasAllowed << 5) & B00010000;			//If LKAS isn't allowed for some reason, force temporary STEER_STATUS error
 
-	msg.buf[2]  = (status->counter << 4 );				        // put in the counter
-	msg.buf[2] |= honda_compute_checksum(&msg.buf[0], msg.len, (unsigned int) msg.id);
-	msg.buf[2] |= (status -> steerBlended << 7);
+	msg.buf[2]  = status->steerTorqueLast >> 8;			    		// 
+	msg.buf[3]  = status->steerTorqueLast & 0xFF;			    		
+
+	msg.buf[4]  = (status->counter_100hz << 4 );				        // put in the counter
+	msg.buf[4] |= honda_compute_checksum(&msg.buf[0], msg.len, (unsigned int) msg.id);
+	msg.buf[4] |= (status -> steerBlended << 7);
 
 	sendCanMsg(&msg);
 }
@@ -116,7 +128,7 @@ void txRawLKASData(int id, int len, struct Status *status){
 	msg.buf[3] =  status -> lkasData[3];
 	msg.buf[4] =  status -> lkasData[4];
 
-	msg.buf[5]  = (status->counter << 4 ); // put in the counter
+	msg.buf[5]  = (status->counter_100hz << 4 ); // put in the counter
 	msg.buf[5] |= honda_compute_checksum(&msg.buf[0],msg.len,(unsigned int) msg.id);
 
 	sendCanMsg(&msg);
@@ -135,8 +147,28 @@ void txRawEPSData(int id, int len, struct Status *status){
 	msg.buf[4] =  status -> epsData[4];
 	msg.buf[5] =  status -> epsData[5];
 
-	msg.buf[6] = (status->counter << 4 ); 
+	msg.buf[6] = (status->counter_100hz << 4 ); 
 	msg.buf[6] |= honda_compute_checksum(&msg.buf[0],msg.len,(unsigned int) msg.id);
+
+	sendCanMsg(&msg);
+}
+
+void txAllSerialData(int id, int len, struct Status *status){
+	
+    CAN_msg_t msg;
+    msg.id = id;
+    msg.len = len;
+
+	msg.buf[0] =  status -> lkasData[0];
+	msg.buf[1] =  status -> lkasData[1];
+	msg.buf[2] =  status -> lkasData[2];
+	msg.buf[3] =  status -> epsData[0];
+	msg.buf[4] =  status -> epsData[1];
+	msg.buf[5] =  status -> epsData[2];
+	msg.buf[6] =  status -> epsData[3];
+
+	msg.buf[7] = (status->counter_100hz << 4 ); 
+	msg.buf[7] |= honda_compute_checksum(&msg.buf[0],msg.len,(unsigned int) msg.id);
 
 	sendCanMsg(&msg);
 }
@@ -149,13 +181,13 @@ void txRawTorqueBlend(int id, int len, struct Status *status){
     msg.len = len;
 
 	msg.buf[0] =  status -> steerTorqueLast >> 8;
-	msg.buf[1] =  status -> steerTorqueLast & B11111111;
+	msg.buf[1] =  status -> steerTorqueLast & 0xFF;
 	msg.buf[2] = 0;
 	msg.buf[3] = 0;
 	msg.buf[4] =  status -> driverAppliedSteer >> 8;
-	msg.buf[5] =  status -> driverAppliedSteer & B11111111;
+	msg.buf[5] =  status -> driverAppliedSteer & 0xFF;
 
-	msg.buf[6] = (status->counter << 4 ); 
+	msg.buf[6] = (status->counter_100hz << 4 ); 
 	msg.buf[6] |= honda_compute_checksum(&msg.buf[0],msg.len,(unsigned int) msg.id);
 
 	sendCanMsg(&msg);
@@ -169,23 +201,22 @@ void handleLkasFromCan(msgFrm canMsg, struct Status *status){
 	}
 	
 	status->found0xE4 = 1; 										// Allow error state LED
-
 	// Start Blending 
 	uint8_t steer_b0 = canMsg.txMsg.bytes[0];					// Upper word
 	uint8_t steer_b1 = canMsg.txMsg.bytes[1];					// Lower word
+	int16_t steerTorqueBlended;
 
 	int16_t steerTorque = steer_b0 << 8 | steer_b1;				// Upper + Lower words  --> Total steer Torque
-	status -> steerTorqueIn = steerTorque;			// Upper + Lower words  --> Total steer Torque
-	int16_t steerTorqueBlended = torque_blend(steerTorque, status->steerTorqueLast, status->driverAppliedSteer);
+	status->steerTorqueIn = steerTorque;						// Upper + Lower words  --> Total steer Torque
+	if (!status->can.torqueBlendDisable){
+	steerTorqueBlended = torque_blend(steerTorque, status->steerTorqueLast, status->driverAppliedSteer);
+	} else {
+	steerTorqueBlended = steerTorque;
+	}
 	status->steerTorqueLast = steerTorqueBlended;
 
-	if(steerTorque != steerTorqueBlended) { 					// Record that we blended
-		// status -> steerBlended = 1;
-	} else {
-		status -> steerBlended = 0;
-	}		
     uint8_t steerMSB_blend = steerTorqueBlended >> 8;			// Break back into upper/ lower
-	uint8_t steerLSB_blend = steerTorqueBlended & B11111111;
+	uint8_t steerLSB_blend = steerTorqueBlended & 0xFF;
 	// End blending
 
 	uint8_t steerMSB  = ( steerMSB_blend >> 4 ) & B00001000; 	// Process for LKAS manipulation
@@ -229,9 +260,23 @@ void handleLkasFromCan(msgFrm canMsg, struct Status *status){
 		}
 
 		if(apply_steer == 0){
-			status->can.lkasRequest = false;
+			status->can.lkasRequest = false;				// If we're blending we might still have a "LKAS REQUEST" which will error EPS on high driver torque
 		}
 	}
+
+	// Update other from STEERING_CONTROL
+	if (canMsg.txMsg.bytes[2] & 0x01){
+		status->can.torqueBlendDisable = 1;
+	} else {
+		status->can.torqueBlendDisable = 0;
+	}
+	
+	if (canMsg.txMsg.bytes[2] & 0x02){
+		status->can.txAllSerial = 1;
+	} else {
+		status->can.txAllSerial = 0;
+	}
+
 	status->timers.can100HzTimer = millis();
 }
 

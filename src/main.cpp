@@ -29,7 +29,6 @@ int main()
   LKAStoEPS_Serial.begin(9600,SERIAL_8E1); 		// Setup LKAS to EPS UART
   
   static struct Status globalStatus;          // Most global data is contained here
-  globalStatus.counter = 0;                   // Initialize counter
   static bool tx_can = 0;                     
 
   while (1)

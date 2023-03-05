@@ -27,6 +27,7 @@ void txMotorTorque(int id, int len, struct Status *status);
 void txSteerStatus(int id, int len, struct Status *status);
 void txRawLKASData(int id, int len, struct Status *status);
 void txRawEPSData(int id, int len, struct Status *status);
+void txAllSerialData(int id, int len, struct Status *status);
 void txFirmwareVersion(int id, int len, struct Status *status);
 int16_t torque_blend(int16_t applyTorque, int16_t applyTorqueLast, int16_t driverTorque);
 void txRawTorqueBlend(int id, int len, struct Status *status);

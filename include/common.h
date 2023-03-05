@@ -34,10 +34,14 @@ struct Can {
     bool     msgDetected;        // CAN message detection
     bool     lkasRequest;       // LKAS allowed OP
     bool     lkasRequestLastState;  // Used for LED disable
+    bool     torqueBlendDisable; // From CAN
+    bool     txAllSerial;
+    
     uint8_t  opCounter;
     uint16_t steerTorque;       // Torque request value (raw)
     uint8_t  steerB0;           // Byte 0 (little steer byte)
     uint8_t  steerB1;           // Byte 1 (big steer byte)
+
 };
 
 struct Timer {
@@ -59,8 +63,10 @@ struct Status {
     int16_t driverAppliedSteer;     // Driver Torque
     uint8_t epsData[5];             // Raw EPS bytes
     uint8_t lkasData[5];            // Raw LKAS bytes
-    uint8_t counter;
+    uint8_t counter_100hz;
+    uint8_t counter_10hz;
     uint8_t sendFrameDelay; // Stock system applies 5 frames of applysteer = 0
+    uint8_t sendFrameDelay2; // Stock system applies 5 frames of applysteer = 0
     
     struct Error error;
     struct Can can;
