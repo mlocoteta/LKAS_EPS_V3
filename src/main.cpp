@@ -82,10 +82,10 @@ void updateStatus(struct Status *status) {
   }
 
 // LED is ON if being manipulatd, otherwise blinks every ~10s for 20ms to indicate it's fine
-  if (status->can.lkasRequest){
+  if (status->can.lkasRequestLED){
     digitalWrite(statusLED, HIGH);
     status->can.lkasRequestLastState = true;
-  } else if (status->can.lkasRequestLastState && !status->can.lkasRequest) {
+  } else if (status->can.lkasRequestLastState && !status->can.lkasRequestLED) {
     status->can.lkasRequestLastState = false;
     digitalWrite(statusLED, LOW);
   }else if (timeSince(&status->timers.ledTimer, 10000, true)){

@@ -36,6 +36,7 @@ struct Can {
     bool     lkasRequestLastState;  // Used for LED disable
     bool     torqueBlendDisable; // From CAN
     bool     txAllSerial;
+    bool     lkasRequestLED;
     
     uint8_t  opCounter;
     uint16_t steerTorque;       // Torque request value (raw)

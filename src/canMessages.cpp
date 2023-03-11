@@ -245,8 +245,10 @@ void handleLkasFromCan(msgFrm canMsg, struct Status *status){
 	// Update steering values
 	if(counterValid && checksumValid){
 		status->can.lkasRequest = false;
+		status->can.lkasRequestLED = false;
 		
 		if((canMsg.txMsg.bytes[2] >> 7) == 1 ){ // Check for steer request
+			status->can.lkasRequestLED = true;
 			status->can.lkasRequest = true;
 		}
 		
