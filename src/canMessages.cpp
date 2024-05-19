@@ -326,11 +326,6 @@ int16_t torque_blend(int16_t applyTorque, int16_t applyTorqueLast, int16_t drive
   int32_t max_steer_allowed = MAX(MIN(steerMax, driver_max_torque), 0);
   int32_t min_steer_allowed = MIN(MAX(-steerMax, driver_min_torque), 0);
 
-  int32_t min_torque = MIN(abs(max_steer_allowed), abs(min_steer_allowed));
-  max_steer_allowed = min_torque;
-  min_steer_allowed = -min_torque;
-  apply_torque = clip(apply_torque, min_steer_allowed, max_steer_allowed);
-
   // slow rate if steer torque increases in magnitude
   if (apply_torque_last > 0){
     apply_torque = clip(apply_torque, MAX(apply_torque_last - steerDeltaDown, -steerDeltaUp),
@@ -339,6 +334,10 @@ int16_t torque_blend(int16_t applyTorque, int16_t applyTorqueLast, int16_t drive
     apply_torque = clip(apply_torque, apply_torque_last - steerDeltaUp,
                         MIN(apply_torque_last + steerDeltaDown, steerDeltaUp));
   }
+  int32_t min_torque = MIN(abs(max_steer_allowed), abs(min_steer_allowed));
+  max_steer_allowed = min_torque;
+  min_steer_allowed = -min_torque;
+  apply_torque = clip(apply_torque, min_steer_allowed, max_steer_allowed);
   int16_t final_torque = apply_torque;
   return final_torque;
 }
