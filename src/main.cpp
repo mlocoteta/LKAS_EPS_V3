@@ -13,7 +13,6 @@ HardwareSerial LKAStoEPS_Serial(PA10,PA9);
 int main()
 {
   init();
-  // delay(3000);
   IWatchdog.begin(12000);                         // 12ms watchdog
   
   eXoCAN can(STD_ID_LEN, BR500K, PORTB_8_9_XCVR); // Create CAN object 500k

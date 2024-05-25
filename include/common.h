@@ -15,10 +15,10 @@ bool timeSince(uint32_t *timer, uint32_t compareTime, bool autoReset);
 int16_t clip(int16_t x, int16_t lo, int16_t hi);
 
 #define steerMax  239
-#define steerThreshold  30
-#define steerDeltaUp  7
-#define steerDeltaDown  100
-#define steerDriverAllowance  25
+#define steerThreshold  30      // Need to prevent driver steer > some value while LKAS is on to prevent LKAS fault
+#define steerDeltaUp  100       //Don't think we need to limit delta up/down
+#define steerDeltaDown 100      
+#define steerDriverAllowance  30
 #define steerDriverMultiplier  18
 #define steerDriverFactor  1
 
